@@ -16,6 +16,33 @@ matplotlib.use('Agg')
 
 warnings.filterwarnings('ignore')
 
+# ==========================================
+# ACTIVE LEARNING CSV RECORDER
+# ==========================================
+def record_active_learning(problem, problem_type, algorithm, pop_size, n_constr, n_obj, 
+                           archive_size, mutation_type, crossover_rate, crossover_type, 
+                           nb_gen, n_vars, ref_point, exec_time, hv, mutation_rate, 
+                           filename="CMOEA_DMA_Randomized_Dataset_1.csv"):
+    """Saves the best run configuration to the dataset for future AI training."""
+    if hv <= 0: return  # Ignore failed runs
+    
+    new_row = {
+        'Problem': problem, 'Problem Type': problem_type, 'Algorithm': algorithm,
+        'Population Size': pop_size, 'Constraints Number': n_constr, 'Objectives Number': n_obj,
+        'Archive Size': archive_size, 'Mutation Type': mutation_type,
+        'Crossover Rate': crossover_rate, 'Crossover Type': crossover_type,
+        'Number of Generations': nb_gen, 'Decision Variables Number': n_vars,
+        'Reference Point': str(ref_point), 'Execution Time': round(exec_time, 4),
+        'Hypervolume': hv, 'Mutation Rate': mutation_rate
+    }
+    
+    file_exists = os.path.isfile(filename)
+    with open(filename, 'a', newline='', encoding='utf-8') as f:
+        writer = csv.DictWriter(f, fieldnames=new_row.keys())
+        if not file_exists: writer.writeheader()
+        writer.writerow(new_row)
+    print(f" Active Learning: Added best run ({algorithm}, HV={hv:.4f}) to '{filename}'.")
+
 
 # ==========================================
 # AI BRAIN & CONTROLLER (Shared)
@@ -27,9 +54,9 @@ class AIBrain:
         try:
             self.model = joblib.load("honest_ai_model.pkl")
             self.loaded = True
-            print("✅ AI Brain Loaded.")
+            print("AI Brain Loaded.")
         except:
-            print("⚠️ Brain not found. Using Heuristic Fallback.")
+            print(" Brain not found. Using Heuristic Fallback.")
             self.loaded = False
 
     def predict_rate(self, n_var, n_obj, nb_gen, n_constr, pop_size):
@@ -428,23 +455,23 @@ def execute_single_run(alg, m, pop_size, nb_generation, strategy, pm_rate):
 # MAIN EXECUTION (OBJECTIVE SCALING)
 # ==========================================
 if __name__ == '__main__':
-    # 📉 drastically lowered parameters for speed
+    # lowered parameters for speed
     m_values = [3, 5, 7, 8, 10]
     pop_size = 100  # Slashed from 200 to prevent NSGA-II sorting bottleneck
-    nb_generation = 500  # Lowered from 1000. 300 is usually enough to establish a trend.
-    runs_per_setting = 15  # Dropped from 30. 15 is perfectly fine for research constraint handling.
-
+    nb_generation = 500  # Lowered from 1000. 
+    runs_per_setting = 30 
+    pc=0.0 # here we studied the absence of crossover operator 
     csv_filename = "objective_scaling_results.csv"
 
-    print("🚀 Starting M-Objective Scaling Experiment (MOEA/D vs NSGA-II)")
-    print(f"⚙️  Settings: Pop={pop_size}, Gens={nb_generation}, Runs={runs_per_setting}\n")
+    print("Starting M-Objective Scaling Experiment (MOEA/D vs NSGA-II)")
+    print(f" Settings: Pop={pop_size}, Gens={nb_generation}, Runs={runs_per_setting}\n")
 
     algorithms = ["CMOEA/D-DMA conventional", "CMOEA/D-DMA AI", "CNSGA2 conventional", "CNSGA2 AI"]
 
     for m in m_values:
         print("=" * 60)
-        print(f"📐 TESTING OBJECTIVES: m = {m}")
-
+        print(f"TESTING OBJECTIVES: m = {m}")
+        
         n_v, n_c = m * 10, m
         fixed_pm_val = 1.0 / n_v
         ai_pm_initial = AI.predict_rate(n_v, m, nb_generation, n_c, pop_size)
@@ -459,13 +486,13 @@ if __name__ == '__main__':
             strategy = "AI-Adaptive" if "AI" in alg else "Fixed-Rate"
             pm_rate = ai_pm_initial if "AI" in alg else fixed_pm_val
 
-            # 🚀 joblib.Parallel handles all runs simultaneously utilizing all CPU Cores
+           
             results = Parallel(n_jobs=-1)(
                 delayed(execute_single_run)(alg, m, pop_size, nb_generation, strategy, pm_rate)
                 for _ in range(runs_per_setting)
             )
 
-            # Unpack results
+         
             for f_vals, exec_time in results:
                 if len(f_vals) > 0: all_feasible_f_vals.append(f_vals)
                 run_data_vault[alg].append({'f_vals': f_vals, 'exec_time': exec_time})
@@ -485,6 +512,7 @@ if __name__ == '__main__':
         # --- HV CALCULATION & SAVING ---
         for alg in algorithms:
             hv_list = []
+            exec_time_list = [] # <--- Added variable initialization here!
             for run_data in run_data_vault[alg]:
                 f_vals = run_data['f_vals']
                 run_hv = 0.0
@@ -495,15 +523,52 @@ if __name__ == '__main__':
                     except:
                         pass
                 hv_list.append(run_hv)
+                exec_time_list.append(run_data['exec_time']) # <--- Added extraction tracking!
 
             mean_hv, std_hv = np.mean(hv_list), np.std(hv_list)
-            print(f"      ✅ {alg}: Mean HV = {mean_hv:.4f} | Std = {std_hv:.4e}")
+            print(f" {alg}: Mean HV = {mean_hv:.4f} | Std = {std_hv:.4e}")
 
+            # Save standard experimental results
             result_row = {'Objectives_m': m, 'Algorithm': alg, 'Mean_HV': mean_hv, 'Std_HV': std_hv}
             file_exists = os.path.isfile(csv_filename)
             with open(csv_filename, 'a', newline='', encoding='utf-8') as f:
                 w = csv.DictWriter(f, fieldnames=result_row.keys())
                 if not file_exists: w.writeheader()
                 w.writerow(result_row)
+
+            # ACTIVE LEARNING: Find the absolute best run and record it
+            if len(hv_list) > 0:
+                best_run_index = np.argmax(hv_list)
+                best_hv = hv_list[best_run_index]
+                best_exec_time = exec_time_list[best_run_index]
+                
+                # Figure out which mutation rate this algorithm actually started with
+                actual_pm = ai_pm_initial if "AI" in alg else fixed_pm_val
+                
+                # Format the reference point as a string representation of an array
+                ref_pt_str = f"[{' '.join(['1.1']*m)}]"
+                
+                # Clean up the algorithm name for the dataset
+                alg_name_clean = "CMOEA/D-DMA" if "CMOEA" in alg else "CNSGA-II"
+                
+                # Only log the best run into the Active Learning dataset
+                record_active_learning(
+                    problem="m-cdtlz",                  
+                    problem_type="continuous",               
+                    algorithm=alg_name_clean,
+                    pop_size=pop_size,
+                    n_constr=n_c,
+                    n_obj=m,
+                    archive_size=pop_size,             
+                    mutation_type="Polynomial",
+                    crossover_rate=pc,                
+                    crossover_type="SBX",              
+                    nb_gen=nb_generation,
+                    n_vars=n_v,
+                    ref_point=ref_pt_str,
+                    exec_time=best_exec_time,          
+                    hv=best_hv,                        
+                    mutation_rate=actual_pm            
+                )
 
     print(f"\nAll M-Objective experiments complete! Data saved to '{csv_filename}'.")

@@ -4,9 +4,9 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import glob
 import os
-import joblib  # <--- ADDED: To save the model
+import joblib  
 
-# Sklearn Imports
+
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import r2_score, mean_absolute_error
 from sklearn.preprocessing import OneHotEncoder, RobustScaler
@@ -14,16 +14,16 @@ from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline
 from sklearn.ensemble import RandomForestRegressor, ExtraTreesRegressor, VotingRegressor
 
-# XGBoost Import
+
 try:
     import xgboost as xgb
 
-    print("✅ XGBoost detected.")
+    print("XGBoost detected.")
 except ImportError:
-    print("⚠️ XGBoost not found. Please install it using: pip install xgboost")
+    print("XGBoost not found. Please install it using: pip install xgboost")
 
 # ==========================================
-# 1. CONFIGURATION & MULTI-FILE LOADING
+# CONFIGURATION
 # ==========================================
 # List of your specific files
 file_paths = [
@@ -42,20 +42,20 @@ for fp in file_paths:
         temp_df.columns = temp_df.columns.str.strip()  # Clean headers
         temp_df['Source_File'] = fp
         dfs.append(temp_df)
-        print(f"   ✅ Loaded: {fp} ({len(temp_df)} rows)")
+        print(f"Loaded: {fp} ({len(temp_df)} rows)")
     except Exception as e:
-        print(f"   ⚠️ Skipped {fp}: {e}")
+        print(f"Skipped {fp}: {e}")
 
 if not dfs:
-    raise ValueError("❌ No files were loaded successfully. Check your file paths.")
+    raise ValueError("No files were loaded successfully. Check your file paths.")
 
 df = pd.concat(dfs, ignore_index=True)
 print(f"   Total Data Loaded: {len(df)} rows.")
 
 # ==========================================
-# [1.5] INTELLIGENT TARGET CREATION
+# INTELLIGENT TARGET CREATION
 # ==========================================
-print("\n[1.5] Verifying Target Variable...")
+print("\n Verifying Target Variable...")
 TARGET = 'Normalized_HV'
 
 
@@ -76,15 +76,15 @@ def get_normalized_score(group):
 
 
 if TARGET not in df.columns:
-    print(f"   ℹ️ Creating '{TARGET}'...")
+    print(f" Creating '{TARGET}'...")
     if 'Problem' in df.columns:
         df['Problem'] = df['Problem'].astype(str).str.lower().str.strip()
         df[TARGET] = df.groupby('Problem', group_keys=False).apply(get_normalized_score, include_groups=False)
     else:
         df[TARGET] = get_normalized_score(df)
-    print(f"   ✅ Created '{TARGET}' successfully.")
+    print(f"Created '{TARGET}' successfully.")
 else:
-    print(f"   ✅ '{TARGET}' already exists.")
+    print(f" '{TARGET}' already exists.")
 
 # ==========================================
 # 2. DATA CLEANING
@@ -98,9 +98,6 @@ for col in text_cols:
         df[col] = df[col].str.replace(r"[\[\]'\" ]", "", regex=True)
         df[col] = df[col].str.replace("-", "").str.replace("_", "")
 
-# --- CHANGE 1: DO NOT DROP 'Problem' YET ---
-# We keep 'Problem' here so we can use it for the table in Step 7.
-# We will drop it explicitly inside the Training section (Step 4).
 cols_to_drop = ['Execution Time', 'Hypervolume', 'HV', 'GD', 'IGD', 'Spacing', 'Spread', 'Reference Point',
                 'Source_File']
 df = df.drop(columns=[c for c in cols_to_drop if c in df.columns], errors='ignore')
@@ -114,9 +111,9 @@ fill_defaults = {
 df = df.fillna(fill_defaults)
 
 # ==========================================
-# 3. ADVANCED FEATURE ENGINEERING
+# ADVANCED FEATURE ENGINEERING
 # ==========================================
-print("[3] Generating Advanced Features...")
+print("Generating Advanced Features...")
 
 df['Complexity_Index'] = df['Objectives Number'] * df['Decision Variables Number']
 if 'Constraints Number' in df.columns:
@@ -128,17 +125,15 @@ if 'ELA_Ruggedness' in df.columns:
     df['Mut_x_Ruggedness'] = df['Mutation Rate'] * df['ELA_Ruggedness']
 
 # ==========================================
-# 4. TRAINING THE "HONEST" MODEL
+# TRAINING THE "HONEST" MODEL
 # ==========================================
-print("\n[4] Training Ensemble Model...")
+print("\n Training Ensemble Model...")
 
-# --- CHANGE 2: EXPLICITLY DROP CHEATING COLUMNS HERE ---
 # We drop 'Problem' and 'Algorithm' so the model relies ONLY on math features.
 drop_for_training = [TARGET, 'Problem', 'Algorithm', 'Problem Type', 'Crossover Type', 'Mutation Type']
 X = df.drop(columns=[c for c in drop_for_training if c in df.columns], errors='ignore')
 y = df[TARGET]
 
-# Filter infinite/NaN
 mask = np.isfinite(y)
 X = X[mask]
 y = y[mask]
@@ -165,10 +160,10 @@ voting_model = VotingRegressor(
 final_pipeline = Pipeline([('prep', preprocessor), ('model', voting_model)])
 final_pipeline.fit(X_train, y_train)
 
-# --- CHANGE 3: SAVE THE MODEL ---
+
 model_filename = "honest_ai_model.pkl"
 joblib.dump(final_pipeline, model_filename)
-print(f"   💾 Honest AI Model saved to '{model_filename}'")
+print(f"AI Model saved to '{model_filename}'")
 
 # ==========================================
 # 5. RESULTS & OPTIMIZATION DEMO
@@ -222,8 +217,7 @@ def optimize_mutation_rate(problem_row, model):
     return rates[best_idx], scores[best_idx], rates, scores
 
 
-# Run Demo
-print("\n[5] Running Optimization Demo...")
+
 # We need a raw row from the original DF (before X split) to keep the structure valid
 sample_idx = X_test.index[0]
 sample_row = df.loc[sample_idx]
@@ -239,12 +233,12 @@ plt.legend()
 plt.grid(True, which="both", ls="-", alpha=0.3)
 plt.show()
 
-print(f"✅ Recommendation: Use Mutation Rate {best_rate:.4f}")
+print(f"Recommendation: Use Mutation Rate {best_rate:.4f}")
 
 # ==========================================
-# 6. FEATURE IMPORTANCE ANALYSIS
+#  FEATURE IMPORTANCE ANALYSIS
 # ==========================================
-print("\n[6] Generating Feature Importance Plot...")
+print("\n Generating Feature Importance Plot...")
 # (Feature importance code remains largely the same, just robust checks)
 trained_voter = final_pipeline.named_steps['model']
 importances_list = []
@@ -275,15 +269,15 @@ if importances_list:
     plt.show()
 
 # ==========================================
-# 7. GENERATE CMOP EXPERIMENT TABLE
+#  GENERATE CMOP EXPERIMENT TABLE
 # ==========================================
-print("\n[7] Generating CMOP Verification Table...")
+print("\nGenerating CMOP Verification Table...")
 
 cmop_mask = (df['Constraints Number'] > 0) | (df['Problem'].str.contains('c-|cmop|constr', case=False, regex=True))
 cmop_df = df[cmop_mask].copy()
 
 if cmop_df.empty:
-    print("⚠️ No specific CMOPs found. Using complex problems instead.")
+    print(" No specific CMOPs found. Using complex problems instead.")
     unique_problems = df.sort_values('Complexity_Index', ascending=False).drop_duplicates('Problem').head(5)
 else:
     # Grouping works now because we kept 'Problem' in the main df
@@ -314,7 +308,7 @@ for idx, row in unique_problems.iterrows():
 
 if results:
     results_df = pd.DataFrame(results).sort_values(by='Difference', ascending=False)
-    print("\n🏆 CMOP RECOMMENDATION TABLE (Top 5):")
+    print("\n CMOP RECOMMENDATION TABLE (Top 5):")
     print(results_df.head(5).to_string(index=False))
     results_df.to_csv('cmop_verification_experiment.csv', index=False)
     print("\n✅ Saved experiment plan to 'cmop_verification_experiment.csv'")

@@ -12,7 +12,7 @@ from joblib import Parallel, delayed
 from pymoo.indicators.hv import HV
 import matplotlib
 
-matplotlib.use('Agg')  # Prevents headless display crashes
+matplotlib.use('Agg')  
 
 warnings.filterwarnings('ignore')
 

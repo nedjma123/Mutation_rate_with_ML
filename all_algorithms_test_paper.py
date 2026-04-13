@@ -18,7 +18,7 @@ warnings.filterwarnings('ignore')
 
 
 # ==========================================
-# 1. AI BRAIN & CONTROLLER (Shared)
+# AI BRAIN & CONTROLLER (Shared)
 # ==========================================
 class AIBrain:
     def __init__(self):
@@ -101,7 +101,7 @@ class TriPhaseController:
 
 
 # ==========================================
-# 2. MOEA/D-DMA COMPONENTS
+# CMOEA/D-DMA 
 # ==========================================
 class Individual:
     def __init__(self, m, p_name='m-cdtlz'):
@@ -247,7 +247,7 @@ class Population:
 
 
 # ==========================================
-# 3. CNSGA-II COMPONENTS
+# CNSGA-II 
 # ==========================================
 class MCDTLZProblem:
     def __init__(self, num_obj):
@@ -407,7 +407,7 @@ class CNSGA2:
 
 
 # ==========================================
-# 4. PARALLEL EXECUTION HELPER
+# PARALLEL EXECUTION HELPER
 # ==========================================
 def execute_single_run(alg, m, pop_size, nb_generation, strategy, pm_rate):
     start_time = time.time()
@@ -425,7 +425,7 @@ def execute_single_run(alg, m, pop_size, nb_generation, strategy, pm_rate):
 
 
 # ==========================================
-# 5. MAIN EXECUTION (OBJECTIVE SCALING)
+# MAIN EXECUTION (OBJECTIVE SCALING)
 # ==========================================
 if __name__ == '__main__':
     # 📉 drastically lowered parameters for speed
@@ -455,7 +455,7 @@ if __name__ == '__main__':
 
         # --- PARALLEL EXECUTION PHASE ---
         for alg in algorithms:
-            print(f"\n▶️ Running: {alg} (Parallel Processing...)")
+            print(f"\n Running: {alg} (Parallel Processing...)")
             strategy = "AI-Adaptive" if "AI" in alg else "Fixed-Rate"
             pm_rate = ai_pm_initial if "AI" in alg else fixed_pm_val
 
@@ -478,9 +478,9 @@ if __name__ == '__main__':
             global_max = stacked_f.max(axis=0)
             denom = global_max - global_min
             denom[denom == 0] = 1.0
-            print(f"\n   🌍 Global Bounds (m={m}) Generated.")
+            print(f"\n Global Bounds (m={m}) Generated.")
         else:
-            print(f"\n   ⚠️ No feasible solutions found for m={m}.")
+            print(f"\n  No feasible solutions found for m={m}.")
 
         # --- HV CALCULATION & SAVING ---
         for alg in algorithms:
@@ -506,4 +506,4 @@ if __name__ == '__main__':
                 if not file_exists: w.writeheader()
                 w.writerow(result_row)
 
-    print(f"\n✅ All M-Objective experiments complete! Data saved to '{csv_filename}'.")
+    print(f"\nAll M-Objective experiments complete! Data saved to '{csv_filename}'.")
